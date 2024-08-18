@@ -1,6 +1,10 @@
 using Roots
 
 """
+Deprecated: functionality has been added to funs.py
+"""
+
+"""
     prob_sample(n, m, x, r)
 
 Probability of being in position x in the sample given position r in the ranking.
