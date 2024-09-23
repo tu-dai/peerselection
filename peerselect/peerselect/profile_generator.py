@@ -57,6 +57,7 @@ import sys
 import collections
 from scipy import stats
 import numpy as np
+import prefsampling
 
 _DEBUG = False
 
@@ -93,6 +94,10 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True)
   Notes
   -----------
   """
+
+  #test prefsampling integration
+  prefsampling.ordinal.mallows(5, 5, 0.0)
+  
   #Verify the clusters...
   if clusters != {}:
   	if _DEBUG: print("\nClusters:\n" + str(clusters))
@@ -230,10 +235,34 @@ def generate_mallows_mixture_profile(voters, candidates, distribution, reference
   # RVS    <2,   92,   356s
   # Numpy RV version...
 
-
+  #derive values for prefsampling call
+  num_voters = len(voters)
+  num_candidates = len(candidates)
+  
+  #if only one model specified, don't bother with the mixtures part
+  if len(distribution) == 1:
+    #pull ranking list of lists from prefsampling
+    ranking_matrix = prefsampling.ordinal.mallows(num_voters, num_candidates, phis[0], central_vote=reference_rankings[0])
+    #transform into dictionary of rankings as expected
+    return {i : ranking_matrix[i] for i in range(num_voters)}
+  
   # Define the RVS for the draw over distros...
   model_rvs = stats.rv_discrete(values=(list(range(len(distribution))),distribution))
 
+  #now we do a single mallows for each voter according to their drawn model
+  profile = {}
+  for c_voter in voters:
+    #draw model
+    model_index = model_rvs.rvs()
+
+    #draw mallows & add to profile
+    profile[c_voter] = prefsampling.ordinal.mallows(1, num_candidates, phis[model_index], central_vote=reference_rankings[model_index])[0]
+
+  return profile
+
+  # DEPRECATED, SLOW AND OLD
+  # KEPT SO THAT OLD BEHAVIOR CAN BE REENABLED IF NECESSARY
+  """
   insertion_rvs = {}
   # For each of the models we need to precompute the insertion distributions and
   # associated RVs.
@@ -258,7 +287,8 @@ def generate_mallows_mixture_profile(voters, candidates, distribution, reference
       profile[c_voter].insert(insertion_rvs[c_model][i].rvs(), c)
 
   return profile
-
+  """
+  
 def compute_mallows_insertion_distribution(length, phi):
   """
   Helper function for the mallows distro above.
