@@ -56,7 +56,7 @@ from scipy import stats
 ## Some Settings
 _DEBUG = False
 
-def vanilla(score_matrix, k, normalize=False):
+def vanilla(score_matrix, k, normalize=False, verbose=False):
   """
   Selects k agents from a using the vanilla method
   which is just selecting agents with the highest scores.
@@ -98,7 +98,10 @@ def vanilla(score_matrix, k, normalize=False):
       for agent,score in winning_set:
           print("Agent: " + str(agent) + " with Score: " + str(score))
 
-  return winning_set
+  if verbose:
+    return winning_set
+  else:
+    return [x[0] for x in winning_set]
 
 def partition_explicit(score_matrix, k, partition, normalize=False):
   """
@@ -639,7 +642,7 @@ def dollar_raffle(score_matrix, k, l, randomize=True, normalize=True):
     return 0
   return dollar_raffle_explicit(score_matrix, k, partition, normalize)
 
-def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True):
+def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True, normalized_score=False):
   """
   Selects exactly k agents from the partitions based on
   their dollar shares in score_matrix not taking into account
@@ -679,12 +682,14 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True):
   Notes
   -----------
   """
+
   if _DEBUG: print("\n\tRunning Exact Dollar Raffle\n")
   ## Set N for convinence...
   n = score_matrix.shape[0]
   l = len(partition.keys())
 
   score_matrix = validate_matrix(score_matrix, partition)
+  original_matrix = score_matrix.copy()
   if isinstance(score_matrix, int):
     return 0
   if normalize:
@@ -718,7 +723,10 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True):
 
   # You're A FOOL MATTEI!
   # Get the lottery.
-  lottery = randomized_allocation_from_quotas(quotas)
+  if np.all([q == int(q) for q in quotas]):
+    lottery = {tuple(int(q) for q in quotas): 1}
+  else:
+    lottery = randomized_allocation_from_quotas(quotas)
 
   if _DEBUG:
     print("\n Lottery: ")
@@ -743,7 +751,10 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True):
   if _DEBUG: print("\nAllocation: " + str(v[allocation]))
 
   # Select the elements winners with highest score..
-  winning_set = select_winners(score_matrix, v[allocation], partition)
+  if normalized_score:
+    winning_set = select_winners(score_matrix, v[allocation], partition)
+  else:
+    winning_set = select_winners(original_matrix, v[allocation], partition)
 
   if _DEBUG:
       print("\nWinners:")
@@ -751,6 +762,7 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True):
           print("Agent: " + str(agent) + " with Score: " + str(score))
 
   return [agent for agent,score in winning_set]
+  
 
 def peer_nomination_lottery(score_matrix, k, epsilon=0):
   """

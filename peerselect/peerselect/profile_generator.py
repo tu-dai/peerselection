@@ -60,7 +60,8 @@ import numpy as np
 
 _DEBUG = False
 
-def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True):
+def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True,
+                                         review_counts=None, agent_assignment=None):
   """
   Creates an "approximatly" m regular reviewing assignment
   for all agents subject to the restriction that no one 
@@ -83,6 +84,13 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True)
     A mapping from integer ---> [agents] where each agent in an 
     partition together.  Agents should not review other agents 
     in their own partition.  Also, partitions must be disjoint.
+
+  review_counts: dict
+    A mapping from item to how many reviews it received. If None initialized with zeros
+
+  agent_assignment: dict
+    A mapping from agent to his assignments. If None initialized with empty assignments.
+    Note: if not None, the function adds m assignments to each agent.
 
   Returns
   -----------
@@ -111,6 +119,9 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True)
   if any([m > len(agents) - len(ci) for k,ci in clusters.items()]):
     print("m is larger than N - Ci for some Ci, duplicate review required.")
     return 0
+
+  if review_counts is None:
+    review_counts = {a: 0 for a in agents}
 
   cluster_assignment = {}
   # Shuffling a dequq scales as n^2, faster to copy..
@@ -148,7 +159,11 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True)
   # assignment to a agent --> agent assignment.  Use a canoical 
   # ordering of the agents on the RHS randomized if necessary.
 
-  agent_assignment = {k:[] for k in agents}
+  if agent_assignment is None:
+    agent_assignment = {k:[] for k in agents}
+  else:
+    agent_assignment = copy.deepcopy(agent_assignment)
+
   target_order = {}
   # Build RHS ordering.
   for k,v in clusters.items():
@@ -159,10 +174,19 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True)
 
   for a, t in agent_to_clusters.items():
     # For each target cluster
+    full_review_order = list(sorted(review_counts, key=review_counts.get))
+    review_order = {c: [item for item in full_review_order if item in clusters[c]]
+                    for c in clusters.keys()}
     for cc in t:
-      #Assign the front of the list and then rotate it 
-      agent_assignment[a].append(target_order[cc][0])
-      target_order[cc].rotate(-1)
+      while len(review_order[cc]) > 0 and review_order[cc][0] in agent_assignment[a]:
+        review_order[cc] = review_order[cc][1:]
+
+      if len(review_order[cc]) == 0:
+        continue
+
+      agent_assignment[a].append(review_order[cc][0])
+      review_counts[review_order[cc][0]] += 1
+      review_order[cc] = review_order[cc][1:]
 
   # Post check for duplicates..
   for k,v in agent_assignment.items():
@@ -481,7 +505,7 @@ def profile_classes_to_score_matrix(profile, scores, distribution = []):
     # Maps percentile to index of score function... hence 1/s% --> 0, 1/(s+1 -- 1/2s --> 1)...
       c_column = np.array([0]*len(profile.keys()))
       for i, c_other in enumerate(profile[c_agent]):
-        c_column[c_other] = scores[int(math.floor((float(i)/ float(len(profile[c_agent])))  * float(len(scores))))]  
+        c_column[c_other] = scores[int(math.floor((float(i)/ float(len(profile[c_agent])))  * float(len(scores))))]
       score_matrix[:, c_agent] = c_column
 
 
