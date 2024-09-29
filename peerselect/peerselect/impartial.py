@@ -56,7 +56,7 @@ from scipy import stats
 ## Some Settings
 _DEBUG = False
 
-def vanilla(score_matrix, k, normalize=False, verbose=False):
+def vanilla(score_matrix, k, normalize=False, verbose=False, **_):
   """
   Selects k agents from a using the vanilla method
   which is just selecting agents with the highest scores.
@@ -764,7 +764,7 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True, 
   return [agent for agent,score in winning_set]
   
 
-def peer_nomination_lottery(score_matrix, k, epsilon=0):
+def peer_nomination_lottery(score_matrix, k, epsilon=0, **_):
   """
   Selects k agents using the peer nomination method.
 

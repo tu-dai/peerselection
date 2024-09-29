@@ -102,10 +102,8 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True,
   Notes
   -----------
   """
+  no_clusters = False
 
-  #test prefsampling integration
-  prefsampling.ordinal.mallows(5, 5, 0.0)
-  
   #Verify the clusters...
   if clusters != {}:
   	if _DEBUG: print("\nClusters:\n" + str(clusters))
@@ -117,6 +115,7 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True,
   else:
   	#Make everone their own cluster if we don't have a clustering.
   	clusters = {i:[agents[i]] for i in range(len(agents))}
+  	no_clusters = True
   	if _DEBUG: print("\nClusters:\n" + str(clusters))
 
   # Do a check here -- if, for every cluster, the number of agents
@@ -180,24 +179,32 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True,
   for a, t in agent_to_clusters.items():
     # For each target cluster
     full_review_order = list(sorted(review_counts, key=review_counts.get))
-    review_order = {c: [item for item in full_review_order if item in clusters[c]]
-                    for c in clusters.keys()}
+    if no_clusters:
+      all_items = [item for item in full_review_order if item != a]
+      review_order = {c: all_items for c in clusters.keys()}
+    else:
+      review_order = {c: [item for item in full_review_order if item in clusters[c]]
+                      for c in clusters.keys()}
     for cc in t:
       while len(review_order[cc]) > 0 and review_order[cc][0] in agent_assignment[a]:
         review_order[cc] = review_order[cc][1:]
 
       if len(review_order[cc]) == 0:
-        continue
+        raise RuntimeError("Tried to assign to agent more reviews than possible")
 
       agent_assignment[a].append(review_order[cc][0])
       review_counts[review_order[cc][0]] += 1
-      review_order[cc] = review_order[cc][1:]
+      if no_clusters:
+        for ccc in clusters.keys():
+          review_order[ccc] = review_order[ccc][1:]
+      else:
+        review_order[cc] = review_order[cc][1:]
 
   # Post check for duplicates..
   for k,v in agent_assignment.items():
     if len(v) != len(set(v)):
       print("Double review assignment: ", str(k), " :: ", str(v))
-    if len(v) != m:
+    if len(v) < m:
       print("Error in assignment, agent ", str(k), " has less than m reviews ", str(v))
   if _DEBUG: print("Agent to Agent: " + str(agent_assignment))
 
