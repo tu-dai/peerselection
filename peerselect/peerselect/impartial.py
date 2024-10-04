@@ -56,7 +56,7 @@ from scipy import stats
 ## Some Settings
 _DEBUG = False
 
-def vanilla(score_matrix, k, normalize=False, verbose=False, **_):
+def vanilla(score_matrix, k, normalize=False, verbose=False, assignment_count=None, **_):
   """
   Selects k agents from a using the vanilla method
   which is just selecting agents with the highest scores.
@@ -91,7 +91,8 @@ def vanilla(score_matrix, k, normalize=False, verbose=False, **_):
     score_matrix = normalize_score_matrix(score_matrix)
 
   # Select the k winners with highest score..
-  winning_set = select_winners(score_matrix, [k], {0: list(range(score_matrix.shape[0]))})
+  winning_set = select_winners(score_matrix, [k], {0: list(range(score_matrix.shape[0]))},
+                               assignment_count)
 
   if _DEBUG:
       print("\nWinners:")
@@ -103,7 +104,8 @@ def vanilla(score_matrix, k, normalize=False, verbose=False, **_):
   else:
     return [x[0] for x in winning_set]
 
-def partition_explicit(score_matrix, k, partition, normalize=False):
+def partition_explicit(score_matrix, k, partition, normalize=False,
+                       assignment_count=None):
   """
   Selects elements[i] agents from partition[i] based on
   their total scores in score_matrix not taking into account
@@ -152,7 +154,7 @@ def partition_explicit(score_matrix, k, partition, normalize=False):
     elements[i] += 1
 
   # Select the k winners with highest score..
-  winning_set = select_winners(score_matrix, elements, partition)
+  winning_set = select_winners(score_matrix, elements, partition, assignment_count)
 
   if _DEBUG:
       print("\nWinners:")
@@ -431,7 +433,7 @@ def credible_subset(score_matrix, k, m, normalize=False):
   #Otherwise no one wins...
   return []
 
-def select_winners(score_matrix, elements, partition):
+def select_winners(score_matrix, elements, partition, assignment_count):
   """
   Selects elements[i] agents from partition[i] based on
   their total scores in score_matrix.
@@ -479,7 +481,10 @@ def select_winners(score_matrix, elements, partition):
       score_tuples[c_p] = []
       #Add up the grades recieved...
       for i in partition[c_p]:
-          score_tuples[c_p].append((i, score_matrix[i, :].sum()))
+          score = score_matrix[i, :].sum()
+          if assignment_count is not None:
+            score = score / (assignment_count[i] + 1e-8)
+          score_tuples[c_p].append((i, score))
       #Sort by score, then by agent #.
       score_tuples[c_p] = sorted(score_tuples[c_p], key=lambda x: (-x[1],x[0]))
       # For each partition select the top s elements according to their score.
@@ -642,7 +647,8 @@ def dollar_raffle(score_matrix, k, l, randomize=True, normalize=True):
     return 0
   return dollar_raffle_explicit(score_matrix, k, partition, normalize)
 
-def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True, normalized_score=False):
+def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True, normalized_score=False,
+                                    assignment_count=None):
   """
   Selects exactly k agents from the partitions based on
   their dollar shares in score_matrix not taking into account
@@ -752,9 +758,9 @@ def exact_dollar_partition_explicit(score_matrix, k, partition, normalize=True, 
 
   # Select the elements winners with highest score..
   if normalized_score:
-    winning_set = select_winners(score_matrix, v[allocation], partition)
+    winning_set = select_winners(score_matrix, v[allocation], partition, None)
   else:
-    winning_set = select_winners(original_matrix, v[allocation], partition)
+    winning_set = select_winners(original_matrix, v[allocation], partition, assignment_count)
 
   if _DEBUG:
       print("\nWinners:")

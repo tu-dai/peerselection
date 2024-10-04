@@ -23,7 +23,8 @@ if __name__ == '__main__':
 
     k = 50
 
-    phi = 0.8
+    phi = 0.95
+    phi_str = str(phi).replace(".", "")
 
     for phi in [0.2, 0.5, 0.8]:
         profiles = [create_profile(num_items, phi) for _ in tqdm(range(num_exps))]
@@ -31,7 +32,7 @@ if __name__ == '__main__':
         # json_str = json.dumps(profiles)
         # json_bytes = json_str.encode('utf-8')
         t = time.time()
-        with gzip.open(f'profiles_0{str(phi)[-1]}.gzip', 'w', compresslevel=9) as f:
+        with gzip.open(f'profiles_{phi_str}.gzip', 'w', compresslevel=9) as f:
             pickle.dump(profiles, f, protocol=pickle.HIGHEST_PROTOCOL)
             # f.write(profiles)
         print(f'gzip took {time.time() - t} secs')

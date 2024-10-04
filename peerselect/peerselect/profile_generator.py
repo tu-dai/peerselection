@@ -178,7 +178,7 @@ def generate_approx_m_regular_assignment(agents, m, clusters={}, randomize=True,
 
   for a, t in agent_to_clusters.items():
     # For each target cluster
-    full_review_order = list(sorted(review_counts, key=review_counts.get))
+    full_review_order = list(sorted(review_counts, key=lambda x: (review_counts[x], np.random.random())))
     if no_clusters:
       all_items = [item for item in full_review_order if item != a]
       review_order = {c: all_items for c in clusters.keys()}
