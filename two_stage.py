@@ -1,7 +1,10 @@
+import argparse
 import gzip
 import json
 import pickle
 import random
+from copy import deepcopy
+
 import numpy as np
 from tqdm import tqdm
 
@@ -77,24 +80,37 @@ def run_instance(items, profile, clusters, scores, initial_reviews, max_reviews,
 
 
 def main():
-    num_exps = 10000
+    num_exps = 100
     num_items = 200
     num_clusters = 3
     items = np.arange(0, num_items)
     scores = np.arange(0, num_items)
-    k = 50
 
-    phi = 0.8
+    parser = argparse.ArgumentParser(description="two stage parameters.")
+
+    parser.add_argument("phi", type=float, help="mallow noise.")
+    parser.add_argument("k", type=int, help="Number of items to select.")
+    parser.add_argument("num_reviews", type=int, help="Number of reviews reviewers.")
+    parser.add_argument("first_round_reviews", type=int, help="Number of reviews in the first round.")
+    parser.add_argument("top_freeze", type=int, help="Number of top items to freeze after the first round.")
+    parser.add_argument("bottom_freeze", type=int, help="Number of bottom items to remove after the first round.")
+
+    args = parser.parse_args()
+
+    k = args.k
+
+    phi = args.phi
     phi_str = str(phi).replace(".", "")
 
-    num_reviews = 3
-    first_round_reviews = 1
-    top_freeze = 1
-    bottom_freeze = 50
+    num_reviews = args.num_reviews
+    first_round_reviews = args.first_round_reviews
+    top_freeze = args.top_freeze
+    bottom_freeze = args.bottom_freeze
 
     print("loading profiles")
     with gzip.open(f'profiles_{phi_str}.gzip', 'rb') as f:
         profiles = pickle.load(f)
+        profiles = profiles[:num_exps]
 
     with gzip.open(f'partition_{num_clusters}.gzip', 'rb') as f:
         part_data = pickle.load(f)
@@ -102,12 +118,13 @@ def main():
         del part_data
 
 
-    vanillas1 = []
-    vanillas2 = []
-    partitions1 = []
-    partitions2 = []
-    edps1 = []
-    edps2 = []
+    metrics = {'precision@k': [], 'positive_borda': [], 'negative_borda': []}
+    vanillas1 = {'outcomes': [], 'metrics': deepcopy(metrics)}
+    vanillas2 = {'outcomes': [], 'metrics': deepcopy(metrics)}
+    partitions1 = {'outcomes': [], 'metrics': deepcopy(metrics)}
+    partitions2 = {'outcomes': [], 'metrics': deepcopy(metrics)}
+    edps1 = {'outcomes': [], 'metrics': deepcopy(metrics)}
+    edps2 = {'outcomes': [], 'metrics': deepcopy(metrics)}
     with ProcessPoolExecutor() as executor:
         futures = []
         for i in range(num_exps):
@@ -122,22 +139,37 @@ def main():
 
         for future in tqdm(as_completed(futures), total=num_exps, desc='Experiments'):
             vanilla1, vanilla2, partition1, partition2, edp1, edp2 = future.result()
-            vanillas1.append(vanilla1)
-            vanillas2.append(vanilla2)
-            partitions1.append(partition1)
-            partitions2.append(partition2)
-            edps1.append(edp1)
-            edps2.append(edp2)
+            vanillas1['outcomes'].append(vanilla1)
+            vanillas2['outcomes'].append(vanilla2)
+            partitions1['outcomes'].append(partition1)
+            partitions2['outcomes'].append(partition2)
+            edps1['outcomes'].append(edp1)
+            edps2['outcomes'].append(edp2)
 
-    res = {}
-    res['v1'] = get_probs(vanillas1, num_exps, num_items).tolist()
-    res['v2'] = get_probs(vanillas2, num_exps, num_items).tolist()
-    res['p1'] = get_probs(partitions1, num_exps, num_items).tolist()
-    res['p2'] = get_probs(partitions2, num_exps, num_items).tolist()
-    res['e1'] = get_probs(edps1, num_exps, num_items).tolist()
-    res['e2'] = get_probs(edps2, num_exps, num_items).tolist()
+            for outcome, mdict in zip([vanilla1, vanilla2, partition1, partition2, edp1, edp2],
+                                      [vanillas1, vanillas2, partitions1, partitions2, edps1, edps2]):
+                prec, pb, nb = calc_metrics(outcome, num_items, k)
+                mdict['metrics']['precision@k'].append(prec)
+                mdict['metrics']['positive_borda'].append(pb)
+                mdict['metrics']['negative_borda'].append(nb)
 
-    with open(f'res_{phi_str}.json', 'w+') as f:
+    res = {'v1': {}, 'v2': {}, 'p1': {}, 'p2': {}, 'e1': {}, 'e2': {}}
+    res['v1']['probs'] = get_probs(vanillas1['outcomes'], num_exps, num_items).tolist()
+    res['v2']['probs'] = get_probs(vanillas2['outcomes'], num_exps, num_items).tolist()
+    res['p1']['probs'] = get_probs(partitions1['outcomes'], num_exps, num_items).tolist()
+    res['p2']['probs'] = get_probs(partitions2['outcomes'], num_exps, num_items).tolist()
+    res['e1']['probs'] = get_probs(edps1['outcomes'], num_exps, num_items).tolist()
+    res['e2']['probs'] = get_probs(edps2['outcomes'], num_exps, num_items).tolist()
+
+    for method, mdict in zip(['v1', 'v2', 'p1', 'p2', 'e1', 'e2'],
+                        [vanillas1, vanillas2, partitions1, partitions2, edps1, edps2]):
+        res[method]['metrics'] = {}
+        for metric_name in ['precision@k', 'positive_borda', 'negative_borda']:
+            res[method]['metrics'][metric_name] = {'mean': np.mean(mdict['metrics'][metric_name]),
+                                                   'std': np.std(mdict['metrics'][metric_name])}
+
+    # with open(f'res_{phi_str}.json', 'w+') as f:
+    with open(f'tmp.json', 'w+') as f:
         json.dump(res, f, indent=4)
 
 
