@@ -26,7 +26,11 @@ def run_two_stage(items, profile, clusters, scores, initial_reviews, max_reviews
     if initial_reviews == max_reviews:
         return agg_method(new_scores, k, partition=clusters, normalize=normalize)
 
-    top_winners = agg_method(new_scores, top_freeze, partition=clusters, normalize=normalize)
+    if top_freeze > 0:
+        top_winners = agg_method(new_scores, top_freeze, partition=clusters, normalize=normalize)
+    else:
+        top_winners = []
+
     top_losers = agg_method(score_matrix.max() - new_scores, bottom_freeze, partition=clusters, normalize=normalize)
     removed = top_winners + top_losers
 
@@ -169,7 +173,8 @@ def main():
                                                    'std': np.std(mdict['metrics'][metric_name])}
 
     # with open(f'res_{phi_str}.json', 'w+') as f:
-    with open(f'tmp.json', 'w+') as f:
+    fn = f'two_{phi_str}_{k}_{num_reviews}_{first_round_reviews}_{top_freeze}_{bottom_freeze}.json'
+    with open(fn, 'w+') as f:
         json.dump(res, f, indent=4)
 
 
